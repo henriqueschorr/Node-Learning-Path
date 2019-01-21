@@ -7,24 +7,49 @@ var mongoose = require('mongoose')
 
 app.use(express.static(__dirname))
 app.use(bodyParser.json())
-app.use(bodyParser.urlencoded({extended: false}))
+app.use(bodyParser.urlencoded({ extended: false }))
+
+mongoose.Promise = Promise
 
 var dbUrl = 'mongodb://user:node18@ds035177.mlab.com:35177/learning-node'
 
-var messages = [
-    {name: 'Tim', message: 'Hi'},
-    {name: 'Jane', message: 'Hello'},
-]
-
-app.get('/messages', (req, res) => {
-    res.send(messages)
+var Message = mongoose.model('Message', {
+    name: String,
+    message: String
 })
 
-app.post('/messages', (req, res) => {
-    messages.push(req.body)
-    io.emit('message', req.body)
-    console.log(req.body)
-    res.sendStatus(200)
+app.get('/messages', (req, res) => {
+    Message.find({}, (err, messages) => {
+        res.send(messages)
+    })
+})
+
+app.post('/messages', async (req, res) => {
+
+    try {
+        var message = new Message(req.body)
+
+        var savedMessage = await message.save()
+
+        console.log('saved')
+
+        var censored = await Message.findOne({ message: 'badword' })
+
+        if (censored) {
+            console.log('Censored Word ', censored)
+            await Message.deleteMany({ _id: censored.id })
+        } else {
+            io.emit('message', req.body)
+        }
+
+        res.sendStatus(200)
+
+    } catch (error) {
+        res.sendStatus(500)
+        return console.error('Error', error)
+    } finally {
+        console.log('message post called')
+    }
 })
 
 io.on('connection', (socket) => {
